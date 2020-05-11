@@ -9,3 +9,5 @@
 {%dependencies.inc}
 
 {---put your controller-related dependencies registration here---}
+
+container.add('homeController', THomeControllerFactory.create());

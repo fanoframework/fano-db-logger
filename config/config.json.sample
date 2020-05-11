@@ -1,1 +1,13 @@
-{ "appName" : "MyApp" }
+{
+    "appName" : "MyApp",
+    "db" : {
+        "mysql" : {
+            "version" : "mysql 5.7",
+            "host" : "127.0.0.1",
+            "port" : 3306,
+            "database" : "[replace with your own]",
+            "username" : "[replace with your own]",
+            "password" : "[replace with your own]"
+        }
+    }
+}

@@ -1,6 +1,6 @@
-# Fano Web Framework Skeleton Application
+# Logger that log messages to MySQL database
 
-Web application skeleton using Fano Framework, Pascal web application framework
+Example Fano Framework web application to demonstrate logging message to MySQL database.
 
 This project is generated using [Fano CLI](https://github.com/fanoframework/fano-cli)
 command line tools to help scaffolding web application using Fano Framework.
@@ -8,83 +8,48 @@ command line tools to help scaffolding web application using Fano Framework.
 ## Requirement
 
 - [Free Pascal](https://www.freepascal.org/) >= 3.0
-- [libcurl development](https://curl.haxx.se/libcurl/)
 - Web Server (Apache, nginx)
 - [Fano Web Framework](https://github.com/fanoframework/fano)
 
 ## Installation
 
-### Build
-
-#### libcurl development package installation
-
-Check if libcurl package for development is installed by running `curl-config`.
+### TL;DR
 
 ```
-$ curl-config --version
-```
-If libcurl installed you will get something like `libcurl x.xx.x` where `x.xx.x` is version. For example `libcurl 7.47.0` otherwise you get
-
-```
-The program 'curl-config' can be found in the following packages:
- * libcurl4-gnutls-dev
- * libcurl4-nss-dev
- * libcurl4-openssl-dev
-Try: sudo apt install <selected package>
+$ git clone git@github.com:fanofamework/fano-db-logger.git --recursive
+$ cd fano-db-logger
+$ ./tools/config.setup.sh
+$ ./build.sh
 ```
 
-In case libcurl not installed, run
+### Setup MySQL database
+
+Before you run application, you need to setup database and table schema.
+Run `tools/data.seeder.sh` from command line
+
 ```
-$ sudo apt install libcurl4-gnutls-dev
+$ DB_ADMIN=[root user] DB_USER=[user to be created] DB_PASSW=[password] ./tools/data.seeder.sh
 ```
 
-### Free Pascal installation
+Following command will prompt you to provide password for `root` and will setup
+new user with name `fano-db-logger` and password `123456`, create database with
+same name as user, i.e., `fano-db-logger`, and seed all data.
 
-Make sure [Free Pascal](https://www.freepascal.org/) is installed. Run
+```
+$ DB_ADMIN=root DB_USER=fano-db-logger DB_PASSW=123456 ./tools/data.seeder.sh
+```
 
-    $ fpc -i
+After that, you need put new database user credential to `src/config/config.json`.
 
-If you see something like `Free Pascal Compiler version 3.0.4`,  you are good to go.
+### Run application
 
-Clone this repository
+Deploy and run application
 
-    $ git clone git@github.com:fanofamework/fano-app.git --recursive
-
-`--recursive` is needed so git also pull [Fano](https://github.com/fanoframework/fano) repository.
-
-If you are missing `--recursive` when you clone, you may find that `vendor/fano` directory is empty. In this case run
-
-    $ git submodule update --init
-
-To update Fano to its latest commit, run
-
-    $ git checkout master && git submodule foreach --recursive git pull origin master
-
-Above command will checkout to `master` branch of this repository and pull latest update from `master` branch of [Fano](https://github.com/fanoframework/fano) repository.
-
-Copy `*.cfg.sample` to `*.cfg`.
-Make adjustment as you need in `build.cfg`, `build.prod.cfg`, `build.dev.cfg`
-and run `build.sh` shell script (if you are on Windows, then `build.cmd`).
-
-These `*.cfg` files contain some Free Pascal compiler switches that you can turn on/off to change how executable is compiled and generated. For complete
-explanation on available compiler switches, consult Free Pascal documentation.
-
-Also copy `src/config/config.json.sample` to `src/config/config.json` and edit
-configuration as needed. For example, you may need to change `baseUrl` to match your own base url so JavaScript or CSS stylesheets point to correct URL.
-
-    $ cp config/config.json.sample config/config.json
-    $ cp build.prod.cfg.sample build.prod.cfg
-    $ cp build.dev.cfg.sample build.dev.cfg
-    $ cp build.cfg.sample build.cfg
-    $ ./build.sh
-
-`tools/config.setup.sh` shell script is provided to simplify copying those
-configuration files. Following shell command is similar to command above.
-
-    $ ./tools/config.setup.sh
-    $ ./build.sh
-
-By default, it will output binary executable in `public` directory.
+```
+$ sudo fanocli --deploy-scgi=db-logger.fano
+$ ./bin/app.cgi
+```
+Open Internet browser and visit URL http://db-logger.fano . You should see `Home Controller` text printed. Open your database manager tools and check, there should be a record added in table `logs` each time URL is visited.
 
 ### Build for different environment
 
@@ -118,13 +83,23 @@ environment variable. By default is `app.cgi` filename.
 
     $ EXEC_OUTPUT_NAME=index.cgi ./build.sh
 
-## Run
 
-### Run with a webserver
+## Run with a webserver
+
+If you use Fano CLI to deploy, you can skip this part.
 
 Setup a virtual host. Please consult documentation of web server you use.
 
-For example on Apache,
+### Apache
+
+You need to have `mod_proxy_scgi` installed and loaded. This module is Apache's built-in module, so it is very likely that you will have it with your Apache installation. You just need to make sure it is loaded. For example, on Debian,
+
+```
+$ sudo a2enmod proxy_scgi
+$ sudo systemctl restart apache2
+```
+
+Create virtual host config and add `ProxyPassMatch`, for example
 
 ```
 <VirtualHost *:80>
@@ -135,60 +110,25 @@ For example on Apache,
          Options +ExecCGI
          AllowOverride FileInfo
          Require all granted
-         DirectoryIndex app.cgi
-         AddHandler cgi-script .cgi
      </Directory>
+
+    ProxyRequests Off
+    ProxyPass /css !
+    ProxyPass /images !
+    ProxyPass /js !
+    ProxyPassMatch ^/(.*)$ scgi://127.0.0.1:20477
 </VirtualHost>
 ```
-On Apache, you will need to enable CGI module, such as `mod_cgi` or `mod_cgid`. If CGI module not loaded, above virtual host will cause `app.cgi` is downloaded instead of executed.
+Last four line of virtual host configurations basically tell Apache to serve any
+files inside `css`, `images`, `js` directly otherwise pass it to our application.
 
-For example, on Debian, this will enable `mod_cgi` module.
+On Debian, save it to `/etc/apache2/sites-available` for example as `fano-db-logger.conf`
+Enable this site and restart Apache
 
 ```
-$ sudo a2enmod cgi
+$ sudo a2ensite fano-db-logger.conf
 $ sudo systemctl restart apache2
 ```
-
-Depending on your server setup, for example, if  you use `.htaccess`, add following code:
-
-```
-<IfModule mod_rewrite.c>
-    RewriteEngine On
-    RewriteCond %{REQUEST_FILENAME} !-d
-    RewriteCond %{REQUEST_FILENAME} !-f
-    RewriteRule ^(.*)$ app.cgi [L]
-</IfModule>
-```
-and put `.htaccess` file in same directory as `app.cgi` file (i.e., in `public` directory).
-
-Content of `.htaccess` basically tells Apache to serve existing files/directories directly. For any non-existing files/directories, pass them to our application.
-
-### Simulate run on command line
-
-```
-$ cd public
-$ REQUEST_METHOD=GET \
-  REQUEST_URI=/test/test \
-  SERVER_NAME=juhara.com \
-  ./app.cgi
-```
-
-`tools/simulate.run.sh` is bash script that can be used to simplify simulating run
-application in shell.
-
-    $ ./tools/simulate.run.sh
-
-or to change route to access, set `REQUEST_URI` variable.
-
-    $ REQUEST_URI=/test/test ./tools/simulate.run.sh
-
-This is similar to simulating browser requesting this page,for example,
-
-    $ wget -O- http://[your fano app hostname]/test/test
-
-However, running using `tools/simulate.run.sh` allows you to view output of `heaptrc`
-unit for detecting memory leak (if you enable `-gh` switch in `build.dev.cfg`).
-
 
 ## Deployment
 
